@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Encode from argument or from STDIN
+[ -z "$1" ] && VAL="$(cat /dev/stdin)" || VAL="$1"
+
+# Base64 encode plus URL encoding
+echo -n "$VAL" | base64 -w 0 | sed -e 's/\+/-/g' -e 's/\//_/g' | sed -E s/=+$//

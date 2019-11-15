@@ -1,0 +1,25 @@
+#!/bin/bash
+
+declare -A JWTOPTS
+
+while (( $# )); do
+  arg=${1:2}
+  shift
+  val=$1
+  shift
+
+  case $arg in
+    secret) SECRET=$val;;
+    *) JWTOPTS[$arg]=$val;;
+  esac
+done
+
+HEADER="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" # {"alg":"HS256","typ":"JWT"}
+PAYLOAD=$(for K in "${!JWTOPTS[@]}"
+do
+    echo "$K"
+    echo "${JWTOPTS[$K]}"
+done | jq -Rn --indent 0 'reduce inputs as $i ({}; . + { ($i): (input|(fromjson? // .)) })' | base64url)
+SIG=$(echo -n "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -hmac $SECRET -binary | base64url)
+
+echo "${HEADER}.${PAYLOAD}.${SIG}"

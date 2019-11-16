@@ -2,24 +2,59 @@
 
 declare -A JWTOPTS
 
-while (( $# )); do
-  arg=${1:2}
-  shift
-  val=$1
-  shift
+usage() {
+  cat <<EOF
+jwt is a simple bash script for creating/signing JSON Web Tokens (JWT).
 
-  case $arg in
-    secret) SECRET=$val;;
-    *) JWTOPTS[$arg]=$val;;
+Usage: jwt options [claims]
+
+Options:
+  -a    specify the signing algorithm
+  -s    signing algorithm secret
+  -h    display this help text and exit
+
+Claims can be provided as either an argument or streamed in thru |.
+EOF
+}
+
+alg=
+s8=
+
+while getopts ':a:s:h' opt; do
+  case "${opt}" in
+    a)
+      alg=$OPTARG
+      ;;
+    s)
+      s8=$OPTARG
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
   esac
 done
+shift "$(($OPTIND -1))"
 
-HEADER="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" # {"alg":"HS256","typ":"JWT"}
-PAYLOAD=$(for K in "${!JWTOPTS[@]}"
-do
-    echo "$K"
-    echo "${JWTOPTS[$K]}"
-done | jq -Rn --indent 0 'reduce inputs as $i ({}; . + { ($i): (input|(fromjson? // .)) })' | base64url)
-SIG=$(echo -n "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -hmac $SECRET -binary | base64url)
+if [ -z $alg ]; then
+  echo "Signing algorithm must be provided"
+  exit 1
+fi
 
-echo "${HEADER}.${PAYLOAD}.${SIG}"
+if [ -z $s8 ]; then
+  echo "Signing secret must be provided"
+  exit 1
+fi
+
+# Construct and encode header
+HEADER=$(echo -en "{\"alg\": \"$alg\",\"typ\":\"JWT\"}" | base64url)
+
+# Get claims from arg/stdin and encode
+[ -z "$1" ] && RAW_CLAIMS=$(cat /dev/stdin) || RAW_CLAIMS="$1"
+CLAIMS=$(echo -n "$RAW_CLAIMS" | base64url)
+
+# Generate signature
+SIG=$(echo -n "${HEADER}.${CLAIMS}" | openssl dgst -sha256 -hmac $s8 -binary | tr -d '\0' | base64url)
+
+# Return JWT
+echo -n "${HEADER}.${CLAIMS}.${SIG}"

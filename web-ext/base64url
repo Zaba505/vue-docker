@@ -4,4 +4,8 @@
 [ -z "$1" ] && VAL="$(cat /dev/stdin)" || VAL="$1"
 
 # Base64 encode plus URL encoding
-echo -n "$VAL" | base64 -w 0 | sed -e 's/\+/-/g' -e 's/\//_/g' | sed -E s/=+$//
+echo -n "$VAL" \
+  | tr -d '[:space:]' \
+  | openssl base64 -e -A \
+  | tr '+/' '-_' \
+  | tr -d =

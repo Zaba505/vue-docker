@@ -1,0 +1,9 @@
+language: bash
+
+git:
+  depth: 3
+
+script:
+  - ./test/bats/install.sh /usr/local
+  - cd web-ext
+  - bats .

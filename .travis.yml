@@ -6,4 +6,5 @@ git:
 script:
   - sudo ./test/bats/install.sh /usr/local
   - cd web-ext
+  - sudo cp jwt /usr/local/bin
   - bats .

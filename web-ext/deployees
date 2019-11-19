@@ -43,7 +43,7 @@ firefox() {
 
   local endpoint="api/v4/addons/extension@athome.io/versions"
   local url=$(printf "https://%s/%s/%s/" $domain $endpoint $VERSION)
-  local resp=$(curl -s --retry 5 $url -g -XPUT -F "upload=$1" -H "Authorization: JWT $tok")
+  local resp=$(curl -s --retry 5 $url -g -XPUT -F "upload=@$1" -H "Authorization: JWT $tok")
 
   if echo $resp | jq -e 'has("error")' > /dev/null
   then

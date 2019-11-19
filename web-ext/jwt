@@ -47,14 +47,14 @@ if [ -z $s8 ]; then
 fi
 
 # Construct and encode header
-HEADER=$(echo -en "{\"alg\": \"$alg\",\"typ\":\"JWT\"}" | base64url)
+HEADER=$(echo -en "{\"alg\":\"$alg\",\"typ\":\"JWT\"}" | base64 | tr -d = | tr '+/' '-_')
 
 # Get claims from arg/stdin and encode
 [ -z "$1" ] && RAW_CLAIMS=$(cat /dev/stdin) || RAW_CLAIMS="$1"
-CLAIMS=$(echo -n "$RAW_CLAIMS" | base64url)
+CLAIMS=$(echo -n "$RAW_CLAIMS" | base64 | tr -d = | tr '+/' '-_')
 
 # Generate signature
-SIG=$(echo -n "${HEADER}.${CLAIMS}" | openssl dgst -sha256 -hmac $s8 -binary | tr -d '\0' | base64url)
+SIG=$(echo -n "${HEADER}.${CLAIMS}"| openssl dgst -binary -sha256 -hmac $s8 | base64 | tr -d = | tr '+/' '-_')
 
 # Return JWT
 echo -n "${HEADER}.${CLAIMS}.${SIG}"

@@ -5,7 +5,6 @@ gen_tok() {
   printf $tok_fmt $1 $2 $(($2 + 300)) $3 | jwt -a HS256 -s $4
 }
 
-# TODO: Handle curl response
 # firefox handles deploying a Web Extension to Firefox Addons.
 firefox() {
   local id=
@@ -43,18 +42,27 @@ firefox() {
 
   local endpoint="api/v4/addons/extension@athome.io/versions"
   local url=$(printf "https://%s/%s/%s/" $domain $endpoint $VERSION)
-  local resp=$(curl -s --retry 5 $url -g -XPUT -F "upload=@$1" -H "Authorization: JWT $tok")
+  local resp=$(curl -sw 'STATUS:%{http_code}' --retry 5 $url -g -XPUT -F "upload=@$1" -H "Authorization: JWT $tok")
 
-  if echo $resp | jq -e 'has("error")' > /dev/null
+  local status=$(echo "$resp" | tr -d '\n' | sed -e 's/.*STATUS://')
+  local body=$(echo "$resp" | sed -e 's/STATUS\:.*//g')
+
+  if [[ ( -z $body ) && ( $status -eq 201 ) || ( $status -eq 202 ) ]]
   then
-    local err=$(echo $resp | jq -s '.[0].error' | sed s/\"//g)
+    echo "firefox: uploaded $1 to $domain"
+    return 0
+  fi
 
-    echo "firefox: encountered error from addons server: $err" >&2
+  if [ $status -ne 400 ]
+  then
+    echo "firefox: failed to upload: $1 with $status"
     return 1
   fi
 
-  echo "firefox: uploaded $1 to $domain"
-  return 0
+  local err=$(echo $body | jq -s '.[0].error' | sed s/\"//g)
+
+  echo "firefox: encountered error from addons server: $err" >&2
+  return 1
 }
 
 # refresh refreshs the Oauth bearer token.
@@ -77,7 +85,6 @@ refresh() {
   return 0
 }
 
-# TODO: Handle curl response
 # chrome handles deploying a Web Extension to Chrome Webstore.
 chrome() {
   local oauth_id=

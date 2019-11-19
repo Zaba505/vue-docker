@@ -51,10 +51,10 @@ HEADER=$(echo -en "{\"alg\":\"$alg\",\"typ\":\"JWT\"}" | base64 | tr -d = | tr '
 
 # Get claims from arg/stdin and encode
 [ -z "$1" ] && RAW_CLAIMS=$(cat /dev/stdin) || RAW_CLAIMS="$1"
-CLAIMS=$(echo -n "$RAW_CLAIMS" | base64 | tr -d = | tr '+/' '-_')
+CLAIMS=$(echo -n "$RAW_CLAIMS" | base64 | tr -d = | tr -d '\n' | tr '+/' '-_')
 
 # Generate signature
-SIG=$(echo -n "${HEADER}.${CLAIMS}"| openssl dgst -binary -sha256 -hmac $s8 | base64 | tr -d = | tr '+/' '-_')
+SIG=$(echo -n "${HEADER}.${CLAIMS}"| openssl dgst -binary -sha256 -hmac $s8 | base64 | tr -d = | tr -d '\n' | tr '+/' '-_')
 
 # Return JWT
 echo -n "${HEADER}.${CLAIMS}.${SIG}"

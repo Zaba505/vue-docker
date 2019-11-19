@@ -11,6 +11,7 @@ Usage: deploy command [options] file.zip
 Commands:
   firefox   deploy to Firefox Addons
   chrome    deploy to Chrome Webstore
+  version   display the version to be deployed
   help      display this help text
 EOF
 }
@@ -28,6 +29,9 @@ case $1 in
     ;;
   help)
     usage
+    ;;
+  version)
+    echo $VERSION
     ;;
   *)
     usage

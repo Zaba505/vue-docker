@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source deployees
+
 usage() {
   cat <<EOF
 deploy provides easy deployment to Firefox Addons and the Chrome Webstore.
@@ -13,88 +15,7 @@ Commands:
 EOF
 }
 
-# version echos the most recent version
-version() {
-  echo -n $(git tag -l | tail -1 | sed s/v//)
-}
-
-check_file() {
-  if [ -z $1 ]; then
-    echo "must provide web extension as .zip file"
-    exit 1
-  fi
-}
-
-# firefox handles deploying the Web Extension to Firefox Addons.
-firefox() {
-  local id=
-  local s8=
-  local tok_fmt='{"iss":"%s","iat":%d,"exp":%d,"jti":"%s"}'
-
-  while true; do
-    case "$1" in
-      -i | --id) id=$2; shift 2;;
-      -s | --secret) s8=$2; shift 2;;
-      *) break;;
-    esac
-  done
-
-  if [ -z $id -o -z $s8 ]; then
-    echo "must provide api id and secret for firefox addons api"
-    exit 1
-  fi
-
-  check_file $1
-
-  cur_time=$(date +%s)
-  tok=$(printf $tok_fmt $id $cur_time $(($cur_time + 300)) $RANDOM \
-    | jwt -a HS256 -s $s8)
-
-  domain="addons.mozilla.org"
-  endpoint="api/v4/addons/extension@athome.io/versions"
-  curl $(printf "https://%s/%s/%s/" $domain $endpoint $VERSION) \
-    -g -XPUT \
-    -F "upload=$1" \
-    -H "Authorization: JWT $tok"
-}
-
-# TODO: Handle curl responses better
-# chrome handles deploying the Web Extension to Chrome Webstore.
-chrome() {
-  local oauth_id=
-  local oauth_s8=
-  local refresh_tok=
-  local webstore_id=
-  local form_fmt="client_id=%s&client_secret=%s&refresh_token=%s&grant_type=refresh_token&redirect_uri=urn:ietf:wg:oauth:2.0:oob"
-
-  while true; do
-    case "$1" in
-      --oauth_id) oauth_id=$2; shift 2;;
-      --oauth_s8) oauth_s8=$2; shift 2;;
-      --refresh) refresh_tok=$2; shift 2;;
-      --webstore_id) webstore_id=$2; shift 2;;
-      *) break;;
-    esac
-  done
-
-  if [ -z $oauth_id -o -z $oauth_s8 -o -z $refresh_tok ]; then
-    echo "must provide oauth id, secret, and refresh token"
-    exit 1
-  fi
-
-  check_file $1
-
-  req_data=$(printf "$form_fmt" $id $s8 $refresh_tok)
-  resp=$(curl "https://accounts.google.com/o/oauth2/token" -d $req_data -v)
-  tok=$(echo $resp | jq -s '.[0].access_token' | sed s/\"//g)
-
-  domain="www.googleapis.com"
-  endpoint="upload/chromewebstore/v1.1/items"
-  url=$(printf "https://%s/%s/%s" $domain $endpoint $webstore_id)
-  curl $url -XPUT -H "Authorization: Bearer $tok" -H "x-goog-api-version: 2" -T $1 -v
-}
-
-VERSION=$(version)
+VERSION=$(git tag -l | tail -1 | sed s/v//)
 
 case $1 in
   firefox)

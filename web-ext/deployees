@@ -1,0 +1,139 @@
+#!/bin/bash
+
+gen_tok() {
+  local tok_fmt='{"iss":"%s","iat":%d,"exp":%d,"jti":"%s"}'
+  printf $tok_fmt $1 $2 $(($2 + 300)) $3 | jwt -a HS256 -s $4
+}
+
+# TODO: Handle curl response
+# firefox handles deploying a Web Extension to Firefox Addons.
+firefox() {
+  local id=
+  local s8=
+
+  while true; do
+    case "$1" in
+      -i | --id) id=$2; shift 2;;
+      -s | --secret) s8=$2; shift 2;;
+      *) break;;
+    esac
+  done
+
+  if [ -z $id ]; then
+    echo "firefox: must provide api id for firefox addons api" >&2
+    return 1
+  fi
+
+  if [ -z $s8 ]; then
+    echo "firefox: must provide api secret for firefox addons api" >&2
+    return 1
+  fi
+
+  if [ -z $1 ]
+  then
+    echo "firefox: must provide web extension as .zip file" >&2
+    return 1
+  fi
+
+  local cur_time=$(date +%s)
+  local tok=$(gen_tok $id $cur_time $RANDOM $s8)
+
+  local domain="addons.mozilla.org"
+  echo "firefox: uploading $1 to $domain"
+
+  local endpoint="api/v4/addons/extension@athome.io/versions"
+  local url=$(printf "https://%s/%s/%s/" $domain $endpoint $VERSION)
+  local resp=$(curl -s --retry 5 $url -g -XPUT -F "upload=$1" -H "Authorization: JWT $tok")
+
+  if echo $resp | jq -e 'has("error")' > /dev/null
+  then
+    local err=$(echo $resp | jq -s '.[0].error' | sed s/\"//g)
+
+    echo "firefox: encountered error from addons server: $err" >&2
+    return 1
+  fi
+
+  echo "firefox: uploaded $1 to $domain"
+  return 0
+}
+
+# refresh refreshs the Oauth bearer token.
+refresh() {
+  local form_fmt="client_id=%s&client_secret=%s&refresh_token=%s&grant_type=refresh_token&redirect_uri=urn:ietf:wg:oauth:2.0:oob"
+  local req_data=$(printf "$form_fmt" $1 $2 $3)
+  local resp=$(curl -s --retry 5 "https://accounts.google.com/o/oauth2/token" -d $req_data)
+
+  # Check if Google API returned error
+  if echo $resp | jq -e 'has("error")' > /dev/null
+  then
+    local err=$(echo $resp | jq -s '.[0].error' | sed s/\"//g)
+    local descr=$(echo $resp | jq -s '.[0].error_description' | sed s/\"//g)
+
+    echo "refresh: encountered google api error: $err:$descr" >&2
+    return 1
+  fi
+
+  echo $resp | jq -s '.[0].access_token' | sed s/\"//g
+  return 0
+}
+
+# TODO: Handle curl response
+# chrome handles deploying a Web Extension to Chrome Webstore.
+chrome() {
+  local oauth_id=
+  local oauth_s8=
+  local refresh_tok=
+  local webstore_id=
+
+  while true; do
+    case "$1" in
+      --oauth_id) oauth_id=$2; shift 2;;
+      --oauth_s8) oauth_s8=$2; shift 2;;
+      --refresh) refresh_tok=$2; shift 2;;
+      --webstore_id) webstore_id=$2; shift 2;;
+      *) break;;
+    esac
+  done
+
+  if [ -z $oauth_id ]; then
+    echo "chrome: must provide oauth id for google apis" >&2
+    return 1
+  fi
+  if [ -z $oauth_s8 ]; then
+    echo "chrome: must provide oauth secret for google apis" >&2
+    return 1
+  fi
+  if [ -z $refresh_tok ]; then
+    echo "chrome: must provide refresh token for google apis" >&2
+    return 1
+  fi
+
+  if [ -z $1 ]
+  then
+    echo "chrome: must provide web extension as .zip file" >&2
+    return 1
+  fi
+
+  tok=$(refresh $oauth_id $oauth_s8 $refresh_tok)
+  if [ $? -eq 1 ]
+  then
+    return 1
+  fi
+
+  domain="www.googleapis.com"
+  echo "chrome: uploading to webstore"
+  endpoint="upload/chromewebstore/v1.1/items"
+  url=$(printf "https://%s/%s/%s" $domain $endpoint $webstore_id)
+  local resp=$(curl -s --retry 5 $url -XPUT -H "Authorization: Bearer $tok" -H "x-goog-api-version: 2" -T $1)
+
+  if echo $resp | jq -e 'has("itemError")' > /dev/null
+  then
+    local err=$(echo $resp | jq -s '.[0].itemError')
+
+    echo "chrome: encountered error(s) when uploading to webstore: $err" >&2
+    return 1
+  fi
+
+  echo "chrome: uploaded to webstore"
+  return 0
+}

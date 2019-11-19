@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/Zaba505/vue-docker.svg?branch=master)](https://travis-ci.com/Zaba505/vue-docker)
+
 # vue-docker
 Docker Images for Vue.js Applications
 
